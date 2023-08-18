@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
 # <HINT> Import any new Models here
-from .models import Course, Enrollment
+from .models import Course, Enrollment, Question, Choice, Submission
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
@@ -11,6 +11,47 @@ import logging
 # Get an instance of a logger
 logger = logging.getLogger(__name__)
 # Create your views here.
+
+def submit(request, course_id):
+    if request.method == 'POST':
+        user = request.user
+        course = get_object_or_404(Course, id=course_id)
+        enrollment = Enrollment.objects.get(user=user, course=course)
+
+        submission = Submission.objects.create(enrollment=enrollment)
+
+        # Get selected choice IDs from the POST request
+        selected_choice_ids = request.POST.getlist('choice')
+
+        # Add each selected choice to the submission
+        for choice_id in selected_choice_ids:
+            choice = Choice.objects.get(id=choice_id)
+            submission.choices.add(choice)
+
+        return redirect('show_exam_result', submission_id=submission.id)
+    else:
+        # Handle GET request if needed
+        pass
+
+
+def show_exam_result(request, course_id, submission_id):
+    course = get_object_or_404(Course, id=course_id)
+    submission = get_object_or_404(Submission, id=submission_id)
+
+    selected_choice_ids = submission.choices.all().values_list('id', flat=True)
+    total_score = 0
+
+    for choice_id in selected_choice_ids:
+        choice = Choice.objects.get(id=choice_id)
+        total_score += choice.question.grade
+
+    context = {
+        'course': course,
+        'selected_ids': selected_choice_ids,
+        'grade': total_score,
+    }
+
+    return render(request, 'exam_result.html', context)
 
 
 def registration_request(request):
